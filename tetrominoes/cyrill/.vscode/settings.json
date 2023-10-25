@@ -1,0 +1,32 @@
+{
+    "files.associations": {
+        "stdbool.h": "c",
+        "__bit_reference": "c",
+        "__hash_table": "c",
+        "__locale": "c",
+        "__string": "c",
+        "atomic": "c",
+        "bitset": "c",
+        "chrono": "c",
+        "complex": "c",
+        "deque": "c",
+        "istream": "c",
+        "limits": "c",
+        "locale": "c",
+        "memory": "c",
+        "optional": "c",
+        "random": "c",
+        "string": "c",
+        "string_view": "c",
+        "tuple": "c",
+        "type_traits": "c",
+        "unordered_map": "c",
+        "variant": "c",
+        "vector": "c",
+        "*.tcc": "c",
+        "cmath": "c",
+        "compare": "c",
+        "format": "c",
+        "functional": "c"
+    }
+}

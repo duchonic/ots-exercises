@@ -108,7 +108,8 @@ const piece_t Z = {.color = COLOR_ANSI_BRIGHT_RED,
                    .tiles = {{-1, 1}, {0, 1}, {0, 0}, {1, 0}},
                    .offsets = &OFFSETS_JLSTZ};
 
-const piece_t *PIECES[7] = {&I, &J, &L, &O, &S, &T, &Z};
+//const piece_t *PIECES[7] = {&I, &J, &L, &O, &S, &T, &Z};
+const piece_t *PIECES[7] = {&I, &O, &O, &O, &O, &I, &O};
 
 void piece_render(const piece_t *piece, vec2_t position);
 
@@ -141,24 +142,25 @@ typedef struct dynamic_piece {
 
 void dynamic_piece_init(dynamic_piece_t *dynamic_piece, const piece_t *piece);
 
-typedef struct frame_timer {
+typedef struct timer {
   struct timespec start;
   struct timespec interval;
-} frame_timer_t;
+} timer_t;
 
-void frame_timer_init(frame_timer_t *timer);
-void frame_timer_reset(frame_timer_t *timer);
-bool_t frame_timer_tick(frame_timer_t *timer);
+void timer_init(timer_t *timer, int sec, int nsec);
+void timer_reset(timer_t *timer);
+bool_t timer_tick(timer_t *timer);
 
 typedef struct game {
   bool_t paused;
   uint32_t score;
-  uint8_t lines;
+  uint16_t lines;
   uint8_t level;
   uint8_t fall_delay;
   uint8_t lock_delay;
   const piece_t *hold;
-  frame_timer_t frame_timer;
+  timer_t frame_timer;
+  timer_t simulation_timer;
   dynamic_piece_t dynamic_piece;
   color_t field[FIELD_HEIGHT][FIELD_WIDTH];
   pieces_buffer_t pieces_buffer;
@@ -189,9 +191,9 @@ void game_position_ghost(game_t *game, dynamic_piece_t *ghost);
 
 void game_score_line_clears(game_t *game, uint8_t line_clears);
 
-uint8_t speed(uint8_t level);
+uint8_t speed(uint16_t level);
 
-uint8_t level(uint8_t lines);
+uint8_t level(uint16_t lines);
 
 int main(int argc, char *argv[]) {
   initscr();
@@ -211,17 +213,18 @@ int main(int argc, char *argv[]) {
 
   game_t game;
   game_init(&game);
-  frame_timer_reset(&game.frame_timer);
+  timer_reset(&game.frame_timer);
+  timer_reset(&game.simulation_timer);
   game.fall_delay = speed(game.level);
 
-  while (1) { // game loop
+  while (1) {  // game loop
     if (game.paused) {
       game_render(&game);
       napms(100);
       game_handle_input(&game);
       continue;
     }
-    if (frame_timer_tick(&game.frame_timer)) {
+    if (timer_tick(&game.frame_timer)) {
       if (game.fall_delay > 0) {
         game.fall_delay--;
       } else {
@@ -231,6 +234,10 @@ int main(int argc, char *argv[]) {
       game_handle_input(&game);
       game_render(&game);
     }
+    if (timer_tick(&game.simulation_timer)) {
+      game.score += 1000;
+      game.lines += 10;
+    }
     napms(1);
   }
 
@@ -239,16 +246,17 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
-void frame_timer_init(frame_timer_t *timer) {
-  timer->interval.tv_sec = 0;
-  timer->interval.tv_nsec = 1000000000L / FPS;
+void timer_init(timer_t *timer, int sec, int nsec) {
+  timer->interval.tv_sec = sec;
+  //timer->interval.tv_nsec = 1000000000L / FPS;
+  timer->interval.tv_nsec = nsec;
 }
 
-void frame_timer_reset(frame_timer_t *timer) {
+void timer_reset(timer_t *timer) {
   clock_gettime(CLOCK_MONOTONIC_RAW, &timer->start);
 }
 
-uint8_t frame_timer_tick(frame_timer_t *timer) {
+uint8_t timer_tick(timer_t *timer) {
   struct timespec now, diff;
   clock_gettime(CLOCK_MONOTONIC_RAW, &now);
   diff.tv_sec = now.tv_sec - timer->start.tv_sec;
@@ -267,7 +275,8 @@ uint8_t frame_timer_tick(frame_timer_t *timer) {
 
 void game_init(game_t *game) {
   memset(game, 0, sizeof(game_t));
-  frame_timer_init(&game->frame_timer);
+  timer_init(&game->frame_timer, 0,  1000000000L / FPS);
+  timer_init(&game->simulation_timer, 0, 1000000000 / 10);
   pieces_buffer_init(&game->pieces_buffer);
   const piece_t *first_piece = pieces_buffer_pop(&game->pieces_buffer);
   dynamic_piece_init(&game->dynamic_piece, first_piece);
@@ -373,7 +382,7 @@ void game_render(game_t *game) {
 }
 
 void game_handle_input(game_t *game) {
-  if (game->paused)
+  if (game->paused) {
     switch (getch()) {
     case 'q':
       game_over(game);
@@ -382,10 +391,10 @@ void game_handle_input(game_t *game) {
       break;
     default:
       game->paused = 0;
-      frame_timer_reset(&game->frame_timer);
+      timer_reset(&game->frame_timer);
       break;
     }
-  else
+  } else {
     switch (getch()) {
     case '\t':
       game_swap_hold(game);
@@ -426,6 +435,7 @@ void game_handle_input(game_t *game) {
     default:
       break;
     }
+  }
 }
 
 void game_rotate_right(game_t *game) {
@@ -699,7 +709,7 @@ void dynamic_piece_init(dynamic_piece_t *dynamic_piece, const piece_t *piece) {
   memcpy(&dynamic_piece->piece, piece, sizeof(piece_t));
 }
 
-uint8_t speed(uint8_t level) {
+uint8_t speed(uint16_t level) {
   switch (level) {
   case 0:
     return 48;
@@ -748,7 +758,7 @@ uint8_t speed(uint8_t level) {
   }
 }
 
-uint8_t level(uint8_t lines) { return lines / 10; }
+uint8_t level(uint16_t lines) { return lines / 10; }
 
 uint8_t color_ansi_fg(color_t color) {
   switch (color) {
